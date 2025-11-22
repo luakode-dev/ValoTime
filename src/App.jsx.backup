@@ -1,0 +1,494 @@
+import React, { useState, useEffect } from 'react';
+import { Clock, AlertCircle, Calendar, Shield, Wifi, Crosshair, Map, Star, Globe } from 'lucide-react';
+
+// --- CONFIGURACIÓN DE ZONAS HORARIAS ---
+// Offsets en horas respecto al tiempo base UTC de la API
+const REGION_OFFSETS = {
+    'NA': 0,      // Norteamérica (tiempo base)
+    'LATAM': 1,   // Latinoamérica (+1 hora)
+    'EU': 6,      // Europa (+6 horas)
+    'AP': 15      // Asia-Pacífico (+15 horas)
+};
+
+const REGION_NAMES = {
+    'NA': 'Norteamérica',
+    'LATAM': 'Latinoamérica',
+    'EU': 'Europa',
+    'AP': 'Asia-Pacífico'
+};
+
+// Función para calcular el tiempo restante
+const calculateTimeLeft = (endTime) => {
+    const now = new Date().getTime();
+    const difference = endTime - now;
+    if (difference <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    return {
+        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+        minutes: Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60)),
+        seconds: Math.floor((difference % (1000 * 60)) / 1000),
+    };
+}
+
+
+// --- COMPONENTES DECORATIVOS ---
+
+const CornerDecor = ({ className }) => (
+    <div className={`absolute w-2 h-2 bg-[#FF4655] ${className}`} />
+);
+
+// Componente para los espacios de publicidad
+const AdPlaceholder = ({ label }) => (
+    <div className="w-full max-w-4xl mx-auto my-8 p-4 border-2 border-dashed border-gray-600 bg-gray-800/30 flex flex-col items-center justify-center h-32 relative overflow-hidden group">
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/diagonal-stripes.png')] opacity-10"></div>
+        <span className="text-gray-400 font-mono uppercase tracking-widest text-sm z-10">
+            {label}
+        </span>
+        <span className="text-xs text-gray-500 mt-2 z-10">Google Ads Leaderboard (728x90)</span>
+        <div className="absolute inset-0 bg-[#FF4655]/5 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></div>
+    </div>
+);
+
+// --- COMPONENTES UI PRINCIPALES ---
+
+const TimeUnit = ({ value, label }) => (
+    <div className="flex flex-col items-center mx-2 md:mx-6 relative group">
+        <div className="relative bg-[#0F1923] border border-white/10 w-20 h-24 md:w-32 md:h-40 flex items-center justify-center mb-2 shadow-lg overflow-hidden transition-all duration-300 hover:border-[#FF4655]/50">
+            <div className="absolute top-0 right-0 w-0 h-0 border-t-[10px] border-r-[10px] border-t-white/20 border-r-transparent"></div>
+            <div className="absolute bottom-0 left-0 w-full h-1 bg-[#FF4655]"></div>
+            <span className="text-4xl md:text-7xl font-black text-white tracking-tighter z-10 font-sans tabular-nums">
+                {String(value).padStart(2, '0')}
+            </span>
+            <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-50"></div>
+        </div>
+        <span className="text-[#FF4655] font-bold uppercase tracking-widest text-xs md:text-sm">
+            {label}
+        </span>
+    </div>
+);
+
+const RegionSelector = ({ selectedRegion, onRegionChange, endTimeUTC }) => {
+    // Calcula la hora local del parche para la región seleccionada
+    const getRegionalTime = (region) => {
+        if (!endTimeUTC) return null;
+        const offset = REGION_OFFSETS[region];
+        const regionalDate = new Date(endTimeUTC + (offset * 60 * 60 * 1000));
+        return regionalDate;
+    };
+
+    const regionalTime = getRegionalTime(selectedRegion);
+
+    return (
+        <div className="w-full max-w-4xl mx-auto mt-8 p-6 border border-white/10 bg-[#0F1923]/60 backdrop-blur-sm">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                {/* Selector de Región */}
+                <div className="flex items-center gap-3">
+                    <Globe className="text-[#FF4655]" size={20} />
+                    <span className="text-gray-400 text-sm uppercase tracking-wider">Tu Región:</span>
+                    <select
+                        value={selectedRegion}
+                        onChange={(e) => onRegionChange(e.target.value)}
+                        className="bg-[#0F1923] border border-white/20 text-white px-4 py-2 rounded-sm font-bold uppercase text-sm tracking-wider cursor-pointer hover:border-[#FF4655] transition-colors focus:outline-none focus:border-[#FF4655]"
+                    >
+                        {Object.keys(REGION_OFFSETS).map(region => (
+                            <option key={region} value={region}>
+                                {region} - {REGION_NAMES[region]}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Hora Regional Estimada */}
+                {regionalTime && (
+                    <div className="text-center md:text-right">
+                        <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Hora estimada del parche</p>
+                        <p className="text-white font-bold text-sm">
+                            {regionalTime.toLocaleString('es-ES', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                timeZoneName: 'short'
+                            })}
+                        </p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const SkinShowcase = ({ skin, isLoading }) => {
+    if (isLoading) {
+        return (
+            <div className="w-full max-w-md mx-auto mt-12 p-1 border border-white/10 bg-[#0F1923]/80 h-64 flex items-center justify-center">
+                <span className="text-white/50 animate-pulse font-mono text-sm">BUSCANDO EN EL MERCADO NEGRO...</span>
+            </div>
+        );
+    }
+
+    if (!skin) return null;
+
+    return (
+        <div className="w-full max-w-2xl mx-auto mt-16 relative group cursor-default">
+            {/* Título de Sección */}
+            <div className="flex items-center justify-center gap-3 mb-6">
+                <div className="h-px w-12 bg-[#FF4655]"></div>
+                <h3 className="text-[#FF4655] font-black uppercase tracking-widest text-sm">¿QUÉ COMPRAR HOY?</h3>
+                <div className="h-px w-12 bg-[#FF4655]"></div>
+            </div>
+
+            {/* Tarjeta de Skin */}
+            <div className="relative bg-gradient-to-br from-[#1c252e] to-[#0F1923] border border-white/10 p-8 overflow-hidden transition-all duration-500 hover:border-[#FF4655]/50 hover:shadow-[0_0_30px_rgba(255,70,85,0.1)]">
+                {/* Fondo decorativo */}
+                <div className="absolute top-0 right-0 p-4 opacity-5">
+                    <Crosshair size={120} />
+                </div>
+
+                {/* Esquinas decorativas */}
+                <CornerDecor className="top-0 left-0" />
+                <CornerDecor className="bottom-0 right-0" />
+
+                <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
+                    {/* Imagen de la skin */}
+                    <div className="w-full md:w-2/3 h-48 flex items-center justify-center relative">
+                        <div className="absolute inset-0 bg-[#FF4655]/20 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                        <img
+                            src={skin.displayIcon}
+                            alt={skin.displayName}
+                            className="max-h-full max-w-full object-contain drop-shadow-2xl transform group-hover:scale-110 group-hover:-rotate-2 transition-transform duration-500 ease-out"
+                        />
+                    </div>
+
+                    {/* Info de la skin */}
+                    <div className="w-full md:w-1/3 flex flex-col items-center md:items-start text-center md:text-left">
+                        <span className="text-xs text-gray-500 uppercase tracking-widest mb-1">Skin Destacada</span>
+                        <h4 className="text-2xl md:text-3xl font-black text-white leading-none mb-4 uppercase italic">
+                            {skin.displayName}
+                        </h4>
+                        <div className="flex gap-2">
+                            <span className="px-3 py-1 bg-white/5 border border-white/10 text-xs text-gray-300 uppercase tracking-wider rounded-sm">
+                                Random Drop
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+    setError("Error al cargar los mapas. Asegúrate de tener conexión.");
+} finally {
+                  group relative overflow - hidden rounded - lg shadow - xl border border - white / 10 cursor - pointer transition - all duration - 300 hover: border - [#FF4655] hover: shadow - [0_0_15px_rgba(255, 70, 85, 0.2)]
+                  ${ isLastItemAndNeedsCentering ? 'lg:col-start-2' : '' }
+    `}
+                >
+                    {/* Imagen con efecto hover/zoom */}
+                    <div className="overflow-hidden bg-[#0F1923] aspect-video w-full">
+                        <img
+                            src={map.imageUrl}
+                            alt={map.displayName}
+                            // Asegura que la imagen sea funcionalmente estética en la tarjeta
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        />
+                    </div>
+
+                    {/* Overlay y Nombre */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-3">
+                        <p className="text-white font-bold uppercase tracking-wider text-sm">
+                            {map.displayName}
+                        </p>
+                    </div>
+                </div>
+                );
+                })}
+            </div>
+        </div>
+    </section >
+);
+};
+
+export default function App() {
+    // Estado para la información del acto (desde la API)
+    const [actInfo, setActInfo] = useState(null);
+    const [isActLoading, setIsActLoading] = useState(true);
+    const [actError, setActError] = useState(null);
+
+    // Estado del contador
+    const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+
+    // Estado de la región seleccionada
+    const [selectedRegion, setSelectedRegion] = useState('NA');
+
+    // Mantenemos el estado de la skin y su carga (para la función de recarga parcial)
+    const [randomSkin, setRandomSkin] = useState(null);
+    const [isSkinLoading, setIsSkinLoading] = useState(true);
+
+    // --- Lógica de Búsqueda de Skin Reutilizable (Mantenida) ---
+    const fetchRandomSkin = async () => {
+        setIsSkinLoading(true);
+        setRandomSkin(null);
+
+        try {
+            // Esta API call se mantiene ya que el usuario quería mantener los cambios de la skin.
+            const skinsRes = await fetch('https://valorant-api.com/v1/weapons/skins');
+            const skinsData = await skinsRes.json();
+
+            const validSkins = skinsData.data.filter(skin =>
+                skin.displayIcon !== null &&
+                !skin.displayName.includes("Standard") &&
+                !skin.displayName.includes("Random")
+            );
+
+            if (validSkins.length > 0) {
+                const randomIndex = Math.floor(Math.random() * validSkins.length);
+                setRandomSkin(validSkins[randomIndex]);
+            }
+        } catch (error) {
+            console.error("Error fetching random skin:", error);
+        } finally {
+            setIsSkinLoading(false);
+        }
+    };
+
+    // --- Fetch de datos de la API de Seasons ---
+    useEffect(() => {
+        const fetchSeasonData = async () => {
+            try {
+                const response = await fetch('https://valorant-api.com/v1/seasons');
+                if (!response.ok) {
+                    throw new Error('Error al obtener datos de temporadas');
+                }
+                const data = await response.json();
+
+                // Filtrar para encontrar el acto activo
+                // El acto activo es aquel cuyo tipo es "EAresSeasonType::Act" y la fecha actual
+                // está entre startTime y endTime
+                const now = new Date().getTime();
+                const activeAct = data.data.find(season => {
+                    if (season.type !== "EAresSeasonType::Act") return false;
+                    const startTime = new Date(season.startTime).getTime();
+                    const endTime = new Date(season.endTime).getTime();
+                    return now >= startTime && now <= endTime;
+                });
+
+                if (activeAct) {
+                    // Extraer el episodio del título o displayName
+                    const episodeName = activeAct.title ?
+                        activeAct.title.split('//')[0].trim() :
+                        activeAct.displayName;
+
+                    setActInfo({
+                        name: activeAct.title || activeAct.displayName,
+                        episode: episodeName,
+                        endTime: new Date(activeAct.endTime).getTime(),
+                        endTimeUTC: activeAct.endTime
+                    });
+                    setActError(null);
+                } else {
+                    throw new Error('No se encontró un acto activo');
+                }
+            } catch (error) {
+                console.error("Error fetching season data:", error);
+                setActError("Error al cargar datos del acto. Usando datos de respaldo.");
+                // Fallback a datos hardcodeados en caso de error
+                const fallbackDate = new Date();
+                fallbackDate.setDate(fallbackDate.getDate() + 10);
+                setActInfo({
+                    name: "EPISODIO 9: ACTO III",
+                    episode: "EPISODIO 9",
+                    endTime: fallbackDate.getTime(),
+                    endTimeUTC: fallbackDate.toISOString()
+                });
+            } finally {
+                setIsActLoading(false);
+            }
+        };
+
+        fetchSeasonData();
+        fetchRandomSkin();
+    }, []);
+
+    // --- Lógica del Contador (actualización cada segundo) ---
+    useEffect(() => {
+        if (!actInfo) return;
+
+        const updateTimer = () => {
+            setTimeLeft(calculateTimeLeft(actInfo.endTime));
+        };
+
+        // Actualizar inmediatamente
+        updateTimer();
+
+        // Actualizar cada segundo
+        const timer = setInterval(updateTimer, 1000);
+        return () => clearInterval(timer);
+    }, [actInfo]);
+
+    return (
+        <div className="min-h-screen bg-[#0F1923] text-white font-sans overflow-x-hidden selection:bg-[#FF4655] selection:text-white">
+            {/* Grid de fondo */}
+            <div className="fixed inset-0 pointer-events-none opacity-5">
+                <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(#ffffff 1px, transparent 1px), linear-gradient(90deg, #ffffff 1px, transparent 1px)', backgroundSize: '50px 50px' }}></div>
+            </div>
+
+            <nav className="w-full h-16 border-b border-white/10 flex items-center justify-between px-6 md:px-12 bg-[#0F1923]/90 backdrop-blur-sm sticky top-0 z-50">
+                <div className="flex items-center gap-4">
+                    <div className="bg-[#FF4655] p-1.5 rounded-sm">
+                        <Shield size={24} className="text-white" />
+                    </div>
+                    <span className="font-black text-xl tracking-tighter uppercase hidden md:block">V_Countdown</span>
+                </div>
+                <div className="flex gap-6 text-sm font-medium text-gray-400 uppercase tracking-wider">
+                    <span className="hover:text-white cursor-pointer transition-colors">Agentes</span>
+                    <span className="text-[#FF4655] cursor-pointer">Live Tracker</span>
+                </div>
+            </nav>
+
+            <main className="flex flex-col items-center w-full relative">
+                <div className="w-full flex flex-col items-center justify-center pt-12 pb-20 relative px-4">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-full bg-gradient-to-b from-[#FF4655]/5 via-transparent to-transparent blur-3xl pointer-events-none"></div>
+
+                    {isActLoading ? (
+                        <div className="flex flex-col items-center justify-center min-h-[400px]">
+                            <Clock className="text-[#FF4655] animate-spin mb-4" size={48} />
+                            <p className="text-white font-bold uppercase tracking-wider">Cargando datos del acto...</p>
+                        </div>
+                    ) : actInfo ? (
+                        <>
+                            <h1 className="text-4xl md:text-8xl font-black uppercase tracking-tighter mb-2 relative z-10 text-center">
+                                <span className="text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-500">
+                                    {actInfo.episode}
+                                </span>
+                            </h1>
+                            <p className="text-[#FF4655] uppercase tracking-[0.2em] md:tracking-[0.5em] font-bold mb-10 border-b border-[#FF4655]/50 pb-2 px-4 md:px-10 text-center animate-pulse text-xs md:text-base">
+                                TIEMPO RESTANTE // {actInfo.name}
+                            </p>
+
+                            {actError && (
+                                <div className="w-full max-w-4xl mx-auto mb-4 p-4 bg-yellow-900/20 border border-yellow-500/50 rounded-sm flex items-center gap-3">
+                                    <AlertCircle className="text-yellow-500" size={20} />
+                                    <p className="text-yellow-200 text-sm">{actError}</p>
+                                </div>
+                            )}
+
+                            <AdPlaceholder label="Anuncio Superior - Leaderboard" />
+
+                            {/* Contador */}
+                            <div className="relative p-8 md:p-12 border border-white/10 bg-[#0F1923]/80 backdrop-blur-md mt-4 transition-opacity duration-500">
+                                <CornerDecor className="top-0 left-0" />
+                                <CornerDecor className="top-0 right-0" />
+                                <CornerDecor className="bottom-0 left-0" />
+                                <CornerDecor className="bottom-0 right-0" />
+
+                                <div className="flex flex-wrap justify-center items-center">
+                                    <TimeUnit value={timeLeft.days} label="Días" />
+                                    <span className="text-4xl font-light text-gray-600 mb-8 hidden md:block">:</span>
+                                    <TimeUnit value={timeLeft.hours} label="Horas" />
+                                    <span className="text-4xl font-light text-gray-600 mb-8 hidden md:block">:</span>
+                                    <TimeUnit value={timeLeft.minutes} label="Minutos" />
+                                    <span className="text-4xl font-light text-gray-600 mb-8 hidden md:block">:</span>
+                                    <TimeUnit value={timeLeft.seconds} label="Segundos" />
+                                </div>
+                            </div>
+
+                            {/* Información de Tiempo UTC y Regional */}
+                            <div className="w-full max-w-4xl mx-auto mt-6 p-4 border border-white/5 bg-[#0F1923]/40 backdrop-blur-sm">
+                                <div className="flex flex-col md:flex-row items-center justify-center gap-4 text-sm">
+                                    <div className="flex items-center gap-2">
+                                        <Calendar className="text-[#FF4655]" size={16} />
+                                        <span className="text-gray-400">Fin del Acto (UTC):</span>
+                                        <span className="text-white font-bold">
+                                            {new Date(actInfo.endTimeUTC).toLocaleString('es-ES', {
+                                                year: 'numeric',
+                                                month: '2-digit',
+                                                day: '2-digit',
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                timeZone: 'UTC',
+                                                timeZoneName: 'short'
+                                            })}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Selector de Región */}
+                            <RegionSelector
+                                selectedRegion={selectedRegion}
+                                onRegionChange={setSelectedRegion}
+                                endTimeUTC={actInfo.endTime}
+                            />
+
+                            {/* Nueva Sección: Skin Showcase */}
+                            <SkinShowcase skin={randomSkin} isLoading={isSkinLoading} />
+
+                            {/* Botón de recarga */}
+                            <button
+                                className="mt-12 group relative px-8 py-4 bg-[#FF4655] text-white font-bold uppercase tracking-widest overflow-hidden disabled:opacity-50"
+                                disabled={isSkinLoading}
+                                onClick={fetchRandomSkin}
+                            >
+                                <div className="absolute inset-0 w-full h-full bg-white/20 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-300 skew-x-12"></div>
+                                <span className="relative z-10 flex items-center gap-2">
+                                    <Crosshair size={18} />
+                                    Buscar Otra Skin
+                                </span>
+                            </button>
+
+                            <AdPlaceholder label="Anuncio Inferior - Banner" />
+                        </>
+                    ) : null}
+                </div>
+
+                {/* === NUEVO COMPONENTE DE MAPAS === */}
+                <ActiveMaps />
+
+                {/* Sección SEO */}
+                <section className="w-full bg-gray-900/50 border-t border-white/5 py-20 px-6">
+                    <div className="max-w-4xl mx-auto">
+                        <div className="flex items-center gap-3 mb-8">
+                            <div className="w-1 h-8 bg-[#FF4655]"></div>
+                            <h2 className="text-3xl font-black uppercase tracking-tight text-white">
+                                Datos del Acto Actual
+                            </h2>
+                        </div>
+                        <div className="grid gap-12 text-gray-300 leading-relaxed">
+                            <article>
+                                <h3 className="text-xl font-bold text-white uppercase mb-4 flex items-center gap-2">
+                                    <Calendar size={20} className="text-[#FF4655]" />
+                                    Cierre de Temporada
+                                </h3>
+                                <p>
+                                    El cronómetro superior muestra la fecha de cierre del acto actual obtenida directamente de la API oficial de Valorant.
+                                    Los datos se actualizan automáticamente y reflejan el tiempo real hasta el fin del {actInfo?.name || 'acto actual'}.
+                                    Puedes seleccionar tu región para ver la hora estimada del parche en tu zona horaria.
+                                </p>
+                            </article>
+                            <article>
+                                <h3 className="text-xl font-bold text-white uppercase mb-4 flex items-center gap-2">
+                                    <Globe size={20} className="text-[#FF4655]" />
+                                    Zonas Horarias Regionales
+                                </h3>
+                                <p>
+                                    El selector de región te permite ver la hora estimada del parche según tu ubicación.
+                                    Los offsets regionales son: NA (base), LATAM (+1h), EU (+6h), y AP (+15h).
+                                    El contador principal siempre muestra el tiempo restante real basado en UTC.
+                                </p>
+                            </article>
+                        </div>
+                    </div>
+                </section>
+
+                <footer className="w-full bg-[#0F1923] border-t-4 border-[#FF4655] py-12 text-center">
+                    <p className="text-gray-500 text-xs uppercase tracking-widest mb-2">
+                        VALORANT API INTEGRATION
+                    </p>
+                    <p className="text-gray-600 text-xs">
+                        Datos de temporadas, skins y mapas proporcionados por valorant-api.com. Actualización automática. No oficial.
+                    </p>
+                </footer>
+            </main>
+        </div>
+    );
+}

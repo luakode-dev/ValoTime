@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  body {
+    @apply bg-background-primary text-text-primary font-inter antialiased;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-outfit font-bold;
+  }
+}
+
+@layer components {
+  /* Custom Scrollbar - Dark Theme */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-background-secondary;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-text-secondary rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-accent-primary;
+  }
+
+  /* Glassmorphism Effect */
+  .glass {
+    background: rgba(44, 44, 46, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Glow Effect for Cards */
+  .card-glow {
+    transition: all 0.3s ease;
+  }
+  
+  .card-glow:hover {
+    box-shadow: 0 0 30px rgba(255, 107, 53, 0.3);
+    transform: translateY(-5px);
+  }
+
+  /* Button Base Styles */
+  .btn-base {
+    @apply px-6 py-3 rounded-lg font-outfit font-semibold transition-all duration-300 ease-in-out;
+  }
+
+  .btn-primary {
+    @apply btn-base bg-accent-primary text-white hover:bg-accent-hover hover:shadow-lg hover:shadow-accent-primary/50;
+  }
+
+  .btn-secondary {
+    @apply btn-base bg-background-card text-text-primary border border-text-secondary hover:border-accent-primary;
+  }
+
+  .btn-outline {
+    @apply btn-base bg-transparent border-2 border-accent-primary text-accent-primary hover:bg-accent-primary hover:text-white;
+  }
+
+  /* Input Styles */
+  .input-base {
+    @apply w-full px-4 py-3 bg-background-card border border-text-secondary rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent-primary transition-colors duration-200;
+  }
+
+  /* Card Styles */
+  .card {
+    @apply bg-background-card rounded-xl p-6 border border-text-secondary/20;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-accent-primary to-accent-hover bg-clip-text text-transparent;
+  }
+  
+  .bg-gradient-accent {
+    @apply bg-gradient-to-r from-accent-primary to-accent-hover;
+  }
+}
